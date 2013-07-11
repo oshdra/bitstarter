@@ -24,8 +24,10 @@ References:
 var fs = require('fs');
 var program = require('commander');
 var cheerio = require('cheerio');
+var rest = require('restler');
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
+var URL_DEFAULT="http://obscure-crag-1441.herokuapp.com/";
 
 var assertFileExists = function(infile) {
     var instr = infile.toString();
@@ -35,6 +37,31 @@ var assertFileExists = function(infile) {
     }
     return instr;
 };
+
+var buildResponse = function(cks)
+{
+ var rp = function(result, response)
+   {
+    if(result instanceof Error) { console.error('Error:' + util.format(response.message)); return ""; }
+     else  {
+            $= cheerio.load(result);
+            var checks = loadChecks(cks).sort();
+            var out = {};
+  	   for(var i in checks)
+              {
+               var present = $(checks[i]).length > 0;
+               out[checks[i]]=present;
+              }
+            console.log(out);
+	   }
+   }
+ return rp;
+}
+
+var assertURL=function(urlini)
+{
+ return urlini; 
+}
 
 var cheerioHtmlFile = function(htmlfile) {
     return cheerio.load(fs.readFileSync(htmlfile));
@@ -55,20 +82,43 @@ var checkHtmlFile = function(htmlfile, checksfile) {
     return out;
 };
 
+var checkHtmlUrl = function(urlfile, checksfile)
+{
+  console.log('retrieve data from ' + urlfile)
+  rest.get(urlfile).on('complete', buildResponse(checksfile));
+}
+
+
 var clone = function(fn) {
     // Workaround for commander.js issue.
     // http://stackoverflow.com/a/6772648
     return fn.bind({});
 };
 
-if(require.main == module) {
+if(require.main == module) 
+   {
     program
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
-        .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+        .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), null)
+        .option('-u, --url <path>','url to index.html', clone(assertURL), null)
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
+    var checkJson = '';
+    if(program.file) 
+	{
+	  console.log('Check local file ' + program.file); 
+    	  checkJson = checkHtmlFile(program.file, program.checks);
+	}
+    else
+	{
+         console.log('Check remote url '+ program.url );
+         checkJson = checkHtmlUrl(program.url, program.checks);
+	}
+    
+    
     var outJson = JSON.stringify(checkJson, null, 4);
     console.log(outJson);
-} else {
+   }
+ else 
+  {
     exports.checkHtmlFile = checkHtmlFile;
-}
+  }
